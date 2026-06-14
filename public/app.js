@@ -129,56 +129,142 @@ function checkFirstTimeUser() {
   }
 }
 
-// Prompt for backup file config on first onboarding load
-async function onboardBackupFile() {
-  if (!('showSaveFilePicker' in window)) {
-    // Fallback if browser doesn't support the API
-    localStorage.setItem('backup_mode', 'fallback');
-    setCookie('has_backup_setup', 'true', 365);
-    document.getElementById('welcome-modal').classList.remove('open');
-    showToast("Using local storage. Backups will download manually.");
-    updateBackupStatusUI();
-    updateSyncIndicator('synced');
+// Onboard using a directory picker and check/import existing backup
+async function onboardBackupFolderSelect() {
+  if (!('showDirectoryPicker' in window)) {
+    runOnboardFallback();
     return;
   }
 
   try {
-    const options = {
-      suggestedName: 'cds-flashcards-backup.json',
-      types: [{
-        description: 'JSON Files',
-        accept: { 'application/json': ['.json'] }
-      }],
-    };
-    fileHandle = await window.showSaveFilePicker(options);
+    const dirHandle = await window.showDirectoryPicker();
     
-    await saveFileHandleToDB(fileHandle);
-    localStorage.setItem('backup_mode', 'api');
-    setCookie('has_backup_setup', 'true', 365);
-
-    // Try reading file if it's an existing file
+    // Check if similar backup file already exists in this folder
+    let existingFileHandle = null;
+    
+    // 1. Check for the exact file first
     try {
-      const file = await fileHandle.getFile();
-      const contents = await file.text();
-      if (contents && contents.trim()) {
-        processImport(contents);
-      } else {
-        await writeBackupFileSilent();
-      }
+      existingFileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: false });
     } catch (e) {
+      // ignore
+    }
+
+    if (!existingFileHandle) {
+      // 2. Iterate entries to look for any file ending in .json and containing cds, flashcard, or backup
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          const lowerName = entry.name.toLowerCase();
+          if (lowerName.endsWith('.json') && 
+              (lowerName.includes('cds') || lowerName.includes('flashcard') || lowerName.includes('backup'))) {
+            existingFileHandle = entry;
+            break;
+          }
+        }
+      }
+    }
+
+    if (existingFileHandle) {
+      // A similar file already exists. Import it!
+      fileHandle = existingFileHandle;
+      await saveFileHandleToDB(fileHandle);
+      localStorage.setItem('backup_mode', 'api');
+      setCookie('has_backup_setup', 'true', 365);
+
+      try {
+        const file = await fileHandle.getFile();
+        const contents = await file.text();
+        processImport(contents);
+        showToast(`Connected: Found and imported "${fileHandle.name}"!`);
+      } catch (e) {
+        console.error(e);
+        showToast("Connected backup found, but failed to read its contents.");
+      }
+    } else {
+      // No similar file exists. Create a new one.
+      fileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: true });
+      await saveFileHandleToDB(fileHandle);
+      localStorage.setItem('backup_mode', 'api');
+      setCookie('has_backup_setup', 'true', 365);
+      
+      // Write current state to initialize the file
       await writeBackupFileSilent();
+      showToast("Created new backup file: cds-flashcards-backup.json");
     }
 
     document.getElementById('welcome-modal').classList.remove('open');
-    showToast("Backup file configured successfully!");
     updateBackupStatusUI();
     updateSyncIndicator('synced');
   } catch (err) {
     console.error(err);
     if (err.name !== 'AbortError') {
-      showToast("Failed to select file.");
+      showToast("Failed to configure backup folder.");
     }
   }
+}
+
+// Import an existing backup file on onboarding
+async function onboardBackupFileImport() {
+  if ('showOpenFilePicker' in window) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'JSON Files',
+          accept: { 'application/json': ['.json'] }
+        }]
+      });
+      
+      const file = await handle.getFile();
+      const contents = await file.text();
+      processImport(contents);
+      
+      fileHandle = handle;
+      await saveFileHandleToDB(fileHandle);
+      localStorage.setItem('backup_mode', 'api');
+      setCookie('has_backup_setup', 'true', 365);
+      
+      document.getElementById('welcome-modal').classList.remove('open');
+      updateBackupStatusUI();
+      updateSyncIndicator('synced');
+    } catch (err) {
+      console.error(err);
+      if (err.name !== 'AbortError') {
+        showToast("Import failed.");
+      }
+    }
+  } else {
+    // Fallback file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const contents = await file.text();
+        processImport(contents);
+        
+        localStorage.setItem('backup_mode', 'fallback');
+        setCookie('has_backup_setup', 'true', 365);
+        document.getElementById('welcome-modal').classList.remove('open');
+        updateBackupStatusUI();
+        updateSyncIndicator('synced');
+      } catch (err) {
+        console.error(err);
+        showToast("Import failed.");
+      }
+    };
+    input.click();
+  }
+}
+
+// Fallback setup for browser engines that lack file picker APIs
+function runOnboardFallback() {
+  localStorage.setItem('backup_mode', 'fallback');
+  setCookie('has_backup_setup', 'true', 365);
+  document.getElementById('welcome-modal').classList.remove('open');
+  showToast("Using local storage. Backups will download manually.");
+  updateBackupStatusUI();
+  updateSyncIndicator('synced');
 }
 
 // Request permission unlock silently on first click if needed
@@ -923,7 +1009,7 @@ async function getFileHandleFromDB() {
 
 // Initialize Backup Handle on Startup
 async function initBackupFile() {
-  if ('showSaveFilePicker' in window) {
+  if ('showDirectoryPicker' in window) {
     try {
       fileHandle = await getFileHandleFromDB();
       if (fileHandle) {
@@ -963,39 +1049,84 @@ async function autoImportBackup() {
   }
 }
 
-// Configure backup save location
-async function setupBackupFile() {
-  if (!('showSaveFilePicker' in window)) {
-    showToast("Overwrite backup not supported on this browser. Backups will download manually.");
+// Configure backup folder location
+async function setupBackupFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    showToast("Directory configuration not supported on this browser. Backups will download manually.");
     localStorage.setItem('backup_mode', 'fallback');
     updateBackupStatusUI();
     return;
   }
 
   try {
-    const options = {
-      suggestedName: 'cds-flashcards-backup.json',
-      types: [{
-        description: 'JSON Files',
-        accept: { 'application/json': ['.json'] }
-      }],
-    };
-    fileHandle = await window.showSaveFilePicker(options);
+    const dirHandle = await window.showDirectoryPicker();
     
-    await saveFileHandleToDB(fileHandle);
-    localStorage.setItem('backup_mode', 'api');
-    setCookie('has_backup_setup', 'true', 365);
+    // Check if similar backup file already exists in this folder
+    let existingFileHandle = null;
     
-    // Write current data silently to initialize the file
-    await writeBackupFileSilent();
+    // 1. Check for the exact file first
+    try {
+      existingFileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: false });
+    } catch (e) {
+      // ignore
+    }
 
-    showToast("Backup file configured successfully!");
+    if (!existingFileHandle) {
+      // 2. Iterate entries to look for any file ending in .json and containing cds, flashcard, or backup
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          const lowerName = entry.name.toLowerCase();
+          if (lowerName.endsWith('.json') && 
+              (lowerName.includes('cds') || lowerName.includes('flashcard') || lowerName.includes('backup'))) {
+            existingFileHandle = entry;
+            break;
+          }
+        }
+      }
+    }
+
+    if (existingFileHandle) {
+      // Ask user if they want to import the existing file or overwrite it
+      const shouldImport = confirm(`Found existing backup file "${existingFileHandle.name}" in that folder. Would you like to import its contents? Tapping "Cancel" will write your current deck to it instead.`);
+      
+      fileHandle = existingFileHandle;
+      await saveFileHandleToDB(fileHandle);
+      localStorage.setItem('backup_mode', 'api');
+      setCookie('has_backup_setup', 'true', 365);
+
+      if (shouldImport) {
+        try {
+          const file = await fileHandle.getFile();
+          const contents = await file.text();
+          processImport(contents);
+          showToast(`Connected: Found and imported "${fileHandle.name}"!`);
+        } catch (e) {
+          console.error(e);
+          showToast("Failed to read the existing backup file.");
+        }
+      } else {
+        // Overwrite existing file with current memory state
+        await writeBackupFileSilent();
+        showToast(`Backup configured and saved to existing "${fileHandle.name}".`);
+      }
+    } else {
+      // No similar file exists. Create a new one.
+      fileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: true });
+      await saveFileHandleToDB(fileHandle);
+      localStorage.setItem('backup_mode', 'api');
+      setCookie('has_backup_setup', 'true', 365);
+      
+      // Write current state to initialize the file
+      await writeBackupFileSilent();
+      showToast("Created new backup file: cds-flashcards-backup.json");
+    }
+
     updateBackupStatusUI();
     updateSyncIndicator('synced');
   } catch (err) {
     console.error(err);
     if (err.name !== 'AbortError') {
-      showToast("Failed to set backup file.");
+      showToast("Failed to configure backup folder.");
     }
   }
 }
