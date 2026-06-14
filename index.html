@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CDS English Prep - Flashcards</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons for aesthetics -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Welcome / Onboarding Modal (First time user setup) -->
+  <div class="modal welcome-modal" id="welcome-modal">
+    <div class="modal-content text-center" style="text-align: center; padding: 32px;">
+      <div class="welcome-icon" style="font-size: 3.5rem; color: var(--primary); margin-bottom: 16px;">
+        <i class="fa-solid fa-graduation-cap"></i>
+      </div>
+      <h2 style="margin-bottom: 12px;">Welcome to CDS English Prep!</h2>
+      <p style="margin-bottom: 24px; font-size: 0.95rem; color: var(--text-secondary);">To begin, please set up a local backup file on your system. This file will automatically keep your flashcards synced and saved securely.</p>
+      
+      <button class="btn btn-primary btn-block" onclick="onboardBackupFile()" style="margin-top: 8px;">
+        <i class="fa-solid fa-folder-plus"></i> Select or Create Backup File
+      </button>
+      
+      <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 16px; font-style: italic;">
+        Brave users: Turn off Brave Shields or enable flags if file picker doesn't appear.
+      </p>
+    </div>
+  </div>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span>CDS English</span>
+      </div>
+      <div class="header-sync-status" id="header-sync-status">
+        <i class="fa-solid fa-circle-check"></i> <span id="sync-text">Synced</span>
+      </div>
+      <div class="streak-badge" id="header-streak-badge">
+        <i class="fa-solid fa-fire"></i>
+        <span id="header-streak-count">0</span> days
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-container">
+    
+    <!-- REVISE TAB SECTION -->
+    <section id="tab-revise" class="tab-panel active">
+      <div class="revision-header">
+        <h2>Daily Revision</h2>
+        <span class="progress-badge" id="revise-progress">0 of 0</span>
+      </div>
+      
+      <!-- Revision View Area -->
+      <div class="revision-content" id="revision-content">
+        <!-- Card Container with Perspective for 3D flip -->
+        <div class="card-perspective">
+          <div class="flashcard" id="flashcard" onclick="flipCard()">
+            <!-- Front of Card -->
+            <div class="card-face card-front">
+              <div class="card-category-tag" id="card-front-tag">Category</div>
+              <div class="card-main-text" id="card-front-text">Front side text</div>
+              <div class="card-hint">
+                <i class="fa-solid fa-rotate"></i> Tap to flip
+              </div>
+            </div>
+            <!-- Back of Card -->
+            <div class="card-face card-back">
+              <div class="card-category-tag" id="card-back-tag">Category</div>
+              <div class="card-main-text" id="card-back-text">Back side explanation</div>
+              <div class="card-example" id="card-back-example-container">
+                <span class="example-label">Example:</span>
+                <span id="card-back-example">This is an example sentence.</span>
+              </div>
+              <div class="card-hint">
+                <i class="fa-solid fa-rotate"></i> Tap to flip back
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Action Buttons (revealed only after card flip) -->
+        <div class="review-actions" id="review-actions">
+          <button class="btn btn-learning" onclick="submitReview(event, 'still_learning')">
+            <i class="fa-solid fa-xmark"></i> Still Learning
+          </button>
+          <button class="btn btn-known" onclick="submitReview(event, 'got_it')">
+            <i class="fa-solid fa-check"></i> Got It
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty/Finished State -->
+      <div class="empty-state hidden" id="revise-empty">
+        <div class="empty-state-icon">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <h3 id="empty-state-title">You're All Caught Up!</h3>
+        <p id="empty-state-message">No cards due for revision today. Add some cards to kickstart your preparation.</p>
+        
+        <div class="empty-actions" style="display: flex; gap: 12px; margin-top: 16px; width: 100%; max-width: 320px;">
+          <button class="btn btn-primary" onclick="resetRevisionQueue()" style="flex: 1;">
+            <i class="fa-solid fa-rotate-left"></i> Revise Again
+          </button>
+          <button class="btn btn-secondary" onclick="switchTab('add-card')" style="flex: 1;">
+            <i class="fa-solid fa-plus"></i> Add Card
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRACTICE QUIZ TAB SECTION -->
+    <section id="tab-quiz" class="tab-panel">
+      <div class="panel-header">
+        <h2>Practice Quiz</h2>
+        <p class="panel-subtitle">Test your knowledge with a random quiz. This does not affect your revision history.</p>
+      </div>
+
+      <!-- 1. Start Screen -->
+      <div class="quiz-sub-panel" id="quiz-start-screen">
+        <div class="stats-chart-card" style="text-align: center; padding: 32px;">
+          <div style="font-size: 3rem; color: var(--secondary); margin-bottom: 16px;">
+            <i class="fa-solid fa-circle-question"></i>
+          </div>
+          <h3 style="margin-bottom: 8px;">Ready to test yourself?</h3>
+          <p style="margin-bottom: 24px; font-size: 0.95rem; color: var(--text-secondary);" id="quiz-rules-text">
+            A quiz consists of up to 20 random flashcards from your deck. You will be rated a score at the end.
+          </p>
+          <div id="quiz-threshold-msg" style="margin-bottom: 20px; font-weight: 600; font-size: 0.95rem;">
+            Checking deck size...
+          </div>
+          <button class="btn btn-primary btn-block" id="btn-start-quiz" onclick="startQuiz()" disabled>
+            <i class="fa-solid fa-play"></i> Start Quiz
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Game Screen -->
+      <div class="quiz-sub-panel hidden" id="quiz-game-screen" style="display: flex; flex-direction: column; flex: 1;">
+        <div class="revision-header" style="margin-bottom: 16px;">
+          <span class="progress-badge" id="quiz-progress">Card 0 of 0</span>
+          <span class="progress-badge" id="quiz-score-indicator" style="background-color: var(--secondary); color: white;">Score: 0</span>
+        </div>
+        
+        <div class="revision-content">
+          <!-- Card Container with Perspective for 3D flip -->
+          <div class="card-perspective" style="margin-bottom: 16px;">
+            <div class="flashcard" id="quiz-flashcard" onclick="flipQuizCard()">
+              <!-- Front of Quiz Card -->
+              <div class="card-face card-front">
+                <div class="card-category-tag" id="quiz-front-tag">Category</div>
+                <div class="card-main-text" id="quiz-front-text">Quiz front text</div>
+                <div class="card-hint">
+                  <i class="fa-solid fa-rotate"></i> Tap to flip
+                </div>
+              </div>
+              <!-- Back of Quiz Card -->
+              <div class="card-face card-back">
+                <div class="card-category-tag" id="quiz-back-tag">Category</div>
+                <div class="card-main-text" id="quiz-back-text">Quiz back text</div>
+                <div class="card-example" id="quiz-back-example-container">
+                  <span class="example-label">Example:</span>
+                  <span id="quiz-back-example">Quiz example sentence.</span>
+                </div>
+                <div class="card-hint">
+                  <i class="fa-solid fa-rotate"></i> Tap to flip back
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Review Action Buttons (revealed only after card flip) -->
+          <div class="review-actions" id="quiz-actions">
+            <button class="btn btn-learning" onclick="submitQuizAnswer(event, false)">
+              <i class="fa-solid fa-xmark"></i> Incorrect
+            </button>
+            <button class="btn btn-known" onclick="submitQuizAnswer(event, true)">
+              <i class="fa-solid fa-check"></i> Got It
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Results Screen -->
+      <div class="quiz-sub-panel hidden" id="quiz-results-screen">
+        <div class="stats-chart-card" style="text-align: center; padding: 32px;">
+          <div style="font-size: 3.5rem; color: var(--success); margin-bottom: 16px;" id="quiz-result-icon">
+            <i class="fa-solid fa-trophy"></i>
+          </div>
+          <h3 style="margin-bottom: 8px;">Quiz Completed!</h3>
+          <div style="font-size: 2.2rem; font-family: var(--font-heading); font-weight: 800; color: var(--text-primary); margin-bottom: 12px;" id="quiz-final-score">
+            0 / 0
+          </div>
+          <p style="margin-bottom: 24px; font-size: 1.05rem; font-weight: 500; color: var(--text-secondary);" id="quiz-feedback-text">
+            Performance feedback message.
+          </p>
+          <button class="btn btn-primary btn-block" onclick="exitQuizToStart()">
+            <i class="fa-solid fa-rotate-left"></i> Practice Again
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADD CARD TAB SECTION -->
+    <section id="tab-add-card" class="tab-panel">
+      <div class="panel-header">
+        <h2>Create New Flashcard</h2>
+        <p class="panel-subtitle">Add a card to your deck. It will immediately join your daily revision queue.</p>
+      </div>
+
+      <form class="card-form" id="add-card-form" onsubmit="handleAddCard(event)">
+        <div class="form-group">
+          <label for="add-category">Category <span class="required">*</span></label>
+          <select id="add-category" onchange="onAddCategoryChange(this.value)" required>
+            <option value="" disabled selected>Select a category</option>
+            <option value="Vocabulary">Vocabulary</option>
+            <option value="Idioms">Idioms</option>
+            <option value="One-word Substitution">One-word Substitution</option>
+            <option value="Synonyms-Antonyms">Synonyms-Antonyms</option>
+            <option value="Grammar Rules">Grammar Rules</option>
+          </select>
+        </div>
+
+        <!-- Dynamic Inputs Container -->
+        <div id="add-dynamic-fields-container">
+          <div class="form-group">
+            <label for="add-front">Front Side <span class="required">*</span></label>
+            <input type="text" id="add-front" placeholder="Word, idiom, or grammar rule..." required>
+          </div>
+
+          <div class="form-group">
+            <label for="add-back">Back Side (Meaning / Explanation) <span class="required">*</span></label>
+            <textarea id="add-back" placeholder="Enter details, meanings, synonyms/antonyms, or explanations..." rows="4" required></textarea>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="add-example">Example Sentence <span class="optional">(Optional)</span></label>
+          <textarea id="add-example" placeholder="Write an example sentence to help remember..." rows="2"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">
+          <i class="fa-solid fa-plus"></i> Save Flashcard
+        </button>
+      </form>
+    </section>
+
+    <!-- BROWSE/MANAGE TAB SECTION -->
+    <section id="tab-browse" class="tab-panel">
+      <div class="panel-header">
+        <h2>Browse Deck</h2>
+      </div>
+
+      <!-- Filters and Search Bar -->
+      <div class="browse-filters">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="search-input" placeholder="Search cards..." oninput="filterCards()">
+        </div>
+        <div class="filter-select">
+          <i class="fa-solid fa-filter"></i>
+          <select id="category-filter" onchange="filterCards()">
+            <option value="">All Categories</option>
+            <option value="Vocabulary">Vocabulary</option>
+            <option value="Idioms">Idioms</option>
+            <option value="One-word Substitution">One-word Substitution</option>
+            <option value="Synonyms-Antonyms">Synonyms-Antonyms</option>
+            <option value="Grammar Rules">Grammar Rules</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Cards List -->
+      <div class="cards-list-container">
+        <div class="cards-grid" id="cards-grid">
+          <!-- Cards injected via JavaScript -->
+        </div>
+        <div class="empty-state hidden" id="browse-empty">
+          <div class="empty-state-icon">
+            <i class="fa-solid fa-box-open"></i>
+          </div>
+          <h3>No cards found</h3>
+          <p>Try refining your search query or category filter, or add a new card.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATS TAB SECTION -->
+    <section id="tab-stats" class="tab-panel">
+      <div class="panel-header">
+        <h2>Deck Statistics</h2>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon icon-total">
+            <i class="fa-solid fa-layer-group"></i>
+          </div>
+          <div class="stat-value" id="stats-total">0</div>
+          <div class="stat-label">Total Cards</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-mastered">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div class="stat-value" id="stats-mastered">0</div>
+          <div class="stat-label">Mastered (Known)</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-due">
+            <i class="fa-solid fa-clock"></i>
+          </div>
+          <div class="stat-value" id="stats-due">0</div>
+          <div class="stat-label">Due Today</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-streak">
+            <i class="fa-solid fa-fire"></i>
+          </div>
+          <div class="stat-value" id="stats-streak">0</div>
+          <div class="stat-label">Daily Streak</div>
+        </div>
+      </div>
+
+      <!-- Progress Section -->
+      <div class="stats-chart-card">
+        <h3>Mastery Level</h3>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" id="stats-progress-bar" style="width: 0%"></div>
+        </div>
+        <p class="progress-percentage-text" id="stats-progress-text">0% of your deck is mastered.</p>
+      </div>
+
+      <!-- Backup & Sync Section -->
+      <div class="stats-chart-card" style="margin-top: 20px;">
+        <h3>Backup & Sync</h3>
+        <p class="panel-subtitle" style="margin-bottom: 16px;">
+          Configure a local file. Saving will overwrite the same file directly.
+        </p>
+        <div class="backup-actions">
+          <button class="btn btn-secondary btn-block" onclick="setupBackupFile()" id="btn-setup-backup" style="margin-bottom: 12px; padding: 10px 16px; font-size: 0.9rem;">
+            <i class="fa-solid fa-folder-open"></i> Configure Backup File
+          </button>
+          
+          <div class="backup-button-row" style="display: flex; gap: 12px; width: 100%;">
+            <button class="btn btn-primary" onclick="triggerBackup()" id="btn-run-backup" style="flex: 1; padding: 10px 16px; font-size: 0.9rem;" disabled>
+              <i class="fa-solid fa-floppy-disk"></i> Save Backup
+            </button>
+            <button class="btn btn-secondary" onclick="triggerImport()" style="flex: 1; padding: 10px 16px; font-size: 0.9rem;">
+              <i class="fa-solid fa-file-import"></i> Restore Backup
+            </button>
+          </div>
+          <div id="backup-status-text" style="font-size: 0.8rem; color: var(--text-light); text-align: center; margin-top: 10px;">
+            No backup file configured.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Edit Card Modal -->
+  <div class="modal" id="edit-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Edit Flashcard</h3>
+        <button class="modal-close" onclick="closeEditModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="edit-card-form" onsubmit="handleEditCard(event)">
+        <input type="hidden" id="edit-card-id">
+        <div class="form-group">
+          <label for="edit-category">Category <span class="required">*</span></label>
+          <select id="edit-category" onchange="onEditCategoryChange(this.value)" required>
+            <option value="Vocabulary">Vocabulary</option>
+            <option value="Idioms">Idioms</option>
+            <option value="One-word Substitution">One-word Substitution</option>
+            <option value="Synonyms-Antonyms">Synonyms-Antonyms</option>
+            <option value="Grammar Rules">Grammar Rules</option>
+          </select>
+        </div>
+
+        <!-- Dynamic Inputs Container for Edit -->
+        <div id="edit-dynamic-fields-container">
+          <div class="form-group">
+            <label for="edit-front">Front Side <span class="required">*</span></label>
+            <input type="text" id="edit-front" required>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-back">Back Side <span class="required">*</span></label>
+            <textarea id="edit-back" rows="4" required></textarea>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-example">Example Sentence <span class="optional">(Optional)</span></label>
+          <textarea id="edit-example" rows="2"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Menu -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-revise" onclick="switchTab('revise')">
+      <i class="fa-solid fa-rotate"></i>
+      <span>Revise</span>
+    </button>
+    <button class="nav-item" id="nav-quiz" onclick="switchTab('quiz')">
+      <i class="fa-solid fa-circle-question"></i>
+      <span>Quiz</span>
+    </button>
+    <button class="nav-item" id="nav-add-card" onclick="switchTab('add-card')">
+      <i class="fa-solid fa-circle-plus"></i>
+      <span>Add Card</span>
+    </button>
+    <button class="nav-item" id="nav-browse" onclick="switchTab('browse')">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Browse</span>
+    </button>
+    <button class="nav-item" id="nav-stats" onclick="switchTab('stats')">
+      <i class="fa-solid fa-chart-simple"></i>
+      <span>Stats</span>
+    </button>
+  </nav>
+
+  <!-- Notification Banner -->
+  <div class="toast" id="toast-notification">Notification Message</div>
+
+  <!-- Client JavaScript -->
+  <script src="app.js"></script>
+</body>
+</html>
