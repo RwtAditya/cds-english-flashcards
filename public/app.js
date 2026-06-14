@@ -197,12 +197,21 @@ async function requestInitialPermissionUnlock() {
   document.removeEventListener('click', requestInitialPermissionUnlock);
 }
 
+// Get Backup Object with cards and streak metadata
+function getBackupObject() {
+  return {
+    cards: allCards,
+    streakCount: parseInt(localStorage.getItem('streakCount') || '0', 10),
+    lastRevisionDate: localStorage.getItem('lastRevisionDate') || ''
+  };
+}
+
 // Load Cards from LocalStorage
 function loadCardsFromStorage() {
   const raw = localStorage.getItem('cds_cards');
   allCards = raw ? JSON.parse(raw) : [];
   if (!lastSavedJsonStr) {
-    lastSavedJsonStr = JSON.stringify(allCards);
+    lastSavedJsonStr = JSON.stringify(getBackupObject());
   }
 }
 
@@ -1023,10 +1032,11 @@ async function writeBackupFileSilent() {
   if (!fileHandle) return;
   try {
     const writable = await fileHandle.createWritable();
-    const data = JSON.stringify(allCards, null, 2);
+    const backupObj = getBackupObject();
+    const data = JSON.stringify(backupObj, null, 2);
     await writable.write(data);
     await writable.close();
-    lastSavedJsonStr = JSON.stringify(allCards); // Update reference tracker
+    lastSavedJsonStr = JSON.stringify(backupObj); // Update reference tracker
   } catch (err) {
     console.error("Silent write failed:", err);
     throw err;
@@ -1039,7 +1049,8 @@ function downloadBackupFallback() {
     showToast("Your deck is empty. Nothing to backup!");
     return;
   }
-  const data = JSON.stringify(allCards, null, 2);
+  const backupObj = getBackupObject();
+  const data = JSON.stringify(backupObj, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1094,21 +1105,37 @@ async function triggerImport() {
 // Process imported string
 function processImport(contents) {
   try {
-    const cards = JSON.parse(contents);
-    if (Array.isArray(cards)) {
-      allCards = cards;
-      saveCardsToStorage();
-      lastSavedJsonStr = JSON.stringify(allCards); // Update reference tracker
+    const importData = JSON.parse(contents);
+    let cards = [];
+    
+    // Check if import data is direct array (old backup version compatibility)
+    if (Array.isArray(importData)) {
+      cards = importData;
+    } else if (importData && Array.isArray(importData.cards)) {
+      // New structured backup format
+      cards = importData.cards;
       
-      showToast(`Restored ${cards.length} cards successfully.`);
-      
-      // Update displays
-      loadBrowseDeck();
-      loadStats();
-      loadRevisionDeck();
+      // Restore streak metadata
+      const streak = importData.streakCount || 0;
+      const lastRevDate = importData.lastRevisionDate || '';
+      localStorage.setItem('streakCount', streak.toString());
+      localStorage.setItem('lastRevisionDate', lastRevDate);
+      initStreak(); // Refresh UI values
     } else {
       showToast("Invalid backup structure.");
+      return;
     }
+
+    allCards = cards;
+    saveCardsToStorage();
+    lastSavedJsonStr = JSON.stringify(getBackupObject()); // Update reference tracker
+    
+    showToast(`Restored ${cards.length} cards successfully.`);
+    
+    // Update displays
+    loadBrowseDeck();
+    loadStats();
+    loadRevisionDeck();
   } catch (err) {
     console.error(err);
     showToast("Invalid JSON file.");
@@ -1181,7 +1208,7 @@ async function unlockSyncPermission() {
 async function checkAndAutoSave() {
   const mode = localStorage.getItem('backup_mode');
   if (mode === 'api' && fileHandle) {
-    const currentJson = JSON.stringify(allCards);
+    const currentJson = JSON.stringify(getBackupObject());
     if (currentJson !== lastSavedJsonStr) {
       // Memory state changed! Auto-save to file.
       try {
