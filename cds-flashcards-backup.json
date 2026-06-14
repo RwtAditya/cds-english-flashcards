@@ -1,45 +1,10 @@
 {
-  "cards": [
-    {
-      "id": 1781410190673,
-      "front": "consider",
-      "back": "deem to be",
-      "category": "Vocabulary",
-      "example": "At the moment, artemisinin-based therapies are considered the best treatment, but cost about $10 per dose - far too much for impoverished communities.",
-      "status": "known",
-      "next_review_date": "2026-06-17",
-      "created_at": "2026-06-14T04:09:50.673Z"
-    },
-    {
-      "id": 1781410444871,
-      "front": "minute",
-      "back": "infinitely or immeasurably small",
-      "category": "Vocabulary",
-      "example": "The minute stain on the document was not visible to the naked eye.",
-      "status": "known",
-      "next_review_date": "2026-06-17",
-      "created_at": "2026-06-14T04:14:04.871Z"
-    },
-    {
-      "id": 1781416187478,
-      "category": "Vocabulary",
-      "front": "accord",
-      "back": "concurrence of opinion",
-      "example": "The committee worked in accord on the bill, and it eventually passed.",
-      "status": "known",
-      "next_review_date": "2026-06-17",
-      "created_at": "2026-06-14T05:49:47.478Z"
-    },
-    {
-      "id": 1781422204135,
-      "category": "Vocabulary",
-      "front": "evident",
-      "back": "clearly revealed to the mind or the senses or judgment",
-      "example": "That confidence was certainly evident in the way Smith handled the winning play with 14 seconds left on the clock.",
-      "status": "known",
-      "next_review_date": "2026-06-17",
-      "created_at": "2026-06-14T07:30:04.135Z"
-    }
+  "cards": [],
+  "deletedCardIds": [
+    1781410190673,
+    1781410444871,
+    1781416187478,
+    1781422204135
   ],
   "streakCount": 1,
   "lastRevisionDate": "2026-06-14"
