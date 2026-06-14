@@ -25,14 +25,19 @@
         <i class="fa-solid fa-graduation-cap"></i>
       </div>
       <h2 style="margin-bottom: 12px;">Welcome to CDS English Prep!</h2>
-      <p style="margin-bottom: 24px; font-size: 0.95rem; color: var(--text-secondary);">To begin, please set up a local backup file on your system. This file will automatically keep your flashcards synced and saved securely.</p>
+      <p style="margin-bottom: 24px; font-size: 0.95rem; color: var(--text-secondary);">To begin, please select a backup folder on your system. If an existing backup file is found in that folder, it will be imported automatically; otherwise, a new backup file will be created.</p>
       
-      <button class="btn btn-primary btn-block" onclick="onboardBackupFile()" style="margin-top: 8px;">
-        <i class="fa-solid fa-folder-plus"></i> Select or Create Backup File
-      </button>
+      <div class="welcome-actions" style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px; width: 100%;">
+        <button class="btn btn-primary btn-block" onclick="onboardBackupFolderSelect()">
+          <i class="fa-solid fa-folder-open"></i> Select Backup Folder
+        </button>
+        <button class="btn btn-secondary btn-block" onclick="onboardBackupFileImport()" style="padding: 12px 20px; font-size: 0.95rem;">
+          <i class="fa-solid fa-file-import"></i> Or, Import Backup File
+        </button>
+      </div>
       
       <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 16px; font-style: italic;">
-        Brave users: Turn off Brave Shields or enable flags if file picker doesn't appear.
+        Brave users: Turn off Brave Shields or enable flags if directory picker doesn't appear.
       </p>
     </div>
   </div>
@@ -352,11 +357,11 @@
       <div class="stats-chart-card" style="margin-top: 20px;">
         <h3>Backup & Sync</h3>
         <p class="panel-subtitle" style="margin-bottom: 16px;">
-          Configure a local file. Saving will overwrite the same file directly.
+          Configure a local folder. Syncing will automatically save to that folder.
         </p>
         <div class="backup-actions">
-          <button class="btn btn-secondary btn-block" onclick="setupBackupFile()" id="btn-setup-backup" style="margin-bottom: 12px; padding: 10px 16px; font-size: 0.9rem;">
-            <i class="fa-solid fa-folder-open"></i> Configure Backup File
+          <button class="btn btn-secondary btn-block" onclick="setupBackupFolder()" id="btn-setup-backup" style="margin-bottom: 12px; padding: 10px 16px; font-size: 0.9rem;">
+            <i class="fa-solid fa-folder-open"></i> Configure Backup Folder
           </button>
           
           <div class="backup-button-row" style="display: flex; gap: 12px; width: 100%;">
