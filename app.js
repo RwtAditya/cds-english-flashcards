@@ -1530,15 +1530,14 @@ async function syncWithGitHub() {
   statusText.style.color = 'var(--secondary)';
   
   const path = 'cds-flashcards-backup.json';
-  const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${path}?ref=${config.branch}`;
+  const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${path}?ref=${config.branch}&_t=${Date.now()}`;
   
   try {
     const getRes = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `token ${config.token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Cache-Control': 'no-cache'
+        'Accept': 'application/vnd.github.v3+json'
       }
     });
     
