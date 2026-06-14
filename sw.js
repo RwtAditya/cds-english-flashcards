@@ -1,9 +1,9 @@
-const CACHE_NAME = 'cds-flashcards-v2.0';
+const CACHE_NAME = 'cds-flashcards-v2.1';
 const ASSETS = [
   './',
   'index.html',
-  'styles.css?v=2.0',
-  'app.js?v=2.0',
+  'styles.css?v=2.1',
+  'app.js?v=2.1',
   'manifest.json',
   'pwa_icon_512.png'
 ];
