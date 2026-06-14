@@ -120,6 +120,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Setup unlock trigger on user click for auto-save locks
   document.addEventListener('click', requestInitialPermissionUnlock);
+
+  // Register Service Worker for PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js?v=2.0')
+        .then(reg => console.log('Service Worker registered', reg))
+        .catch(err => console.error('Service Worker registration failed', err));
+    });
+  }
 });
 
 // Check if first-time user and display onboarding welcomes
@@ -130,7 +139,7 @@ function checkFirstTimeUser() {
   }
 }
 
-// Onboard using a directory picker and check/import existing backup
+// Onboard using a directory picker starting in downloads, creating subfolder and file
 async function onboardBackupFolderSelect() {
   if (!('showDirectoryPicker' in window)) {
     runOnboardFallback();
@@ -138,34 +147,48 @@ async function onboardBackupFolderSelect() {
   }
 
   try {
-    const dirHandle = await window.showDirectoryPicker();
+    const parentDirHandle = await window.showDirectoryPicker({
+      startIn: 'downloads'
+    });
     
-    // Check if similar backup file already exists in this folder
+    const folderName = 'CDS-Flashcards';
+    const fileName = 'cds-flashcards-backup.json';
+    
+    let subDirHandle = null;
     let existingFileHandle = null;
     
-    // 1. Check for the exact file first
+    // 1. Try to open the subfolder 'CDS-Flashcards'
     try {
-      existingFileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: false });
+      subDirHandle = await parentDirHandle.getDirectoryHandle(folderName, { create: false });
     } catch (e) {
-      // ignore
+      // subfolder doesn't exist
     }
 
-    if (!existingFileHandle) {
-      // 2. Iterate entries to look for any file ending in .json and containing cds, flashcard, or backup
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file') {
-          const lowerName = entry.name.toLowerCase();
-          if (lowerName.endsWith('.json') && 
-              (lowerName.includes('cds') || lowerName.includes('flashcard') || lowerName.includes('backup'))) {
-            existingFileHandle = entry;
-            break;
+    if (subDirHandle) {
+      // 2. Subfolder exists. Check for exact backup file first
+      try {
+        existingFileHandle = await subDirHandle.getFileHandle(fileName, { create: false });
+      } catch (e) {
+        // exact file doesn't exist. search for similar files in the subfolder
+      }
+
+      if (!existingFileHandle) {
+        // Look for similar files inside the subfolder
+        for await (const entry of subDirHandle.values()) {
+          if (entry.kind === 'file') {
+            const lowerName = entry.name.toLowerCase();
+            if (lowerName.endsWith('.json') && 
+                (lowerName.includes('cds') || lowerName.includes('flashcard') || lowerName.includes('backup'))) {
+              existingFileHandle = entry;
+              break;
+            }
           }
         }
       }
     }
 
     if (existingFileHandle) {
-      // A similar file already exists. Import it!
+      // Existing backup file found inside the subfolder. Import it!
       fileHandle = existingFileHandle;
       await saveFileHandleToDB(fileHandle);
       localStorage.setItem('backup_mode', 'api');
@@ -178,18 +201,22 @@ async function onboardBackupFolderSelect() {
         showToast(`Connected: Found and imported "${fileHandle.name}"!`);
       } catch (e) {
         console.error(e);
-        showToast("Connected backup found, but failed to read its contents.");
+        showToast("Backup found, but failed to read its contents.");
       }
     } else {
-      // No similar file exists. Create a new one.
-      fileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: true });
+      // Subfolder or backup file does not exist. Create them!
+      if (!subDirHandle) {
+        subDirHandle = await parentDirHandle.getDirectoryHandle(folderName, { create: true });
+      }
+      fileHandle = await subDirHandle.getFileHandle(fileName, { create: true });
+      
       await saveFileHandleToDB(fileHandle);
       localStorage.setItem('backup_mode', 'api');
       setCookie('has_backup_setup', 'true', 365);
       
       // Write current state to initialize the file
       await writeBackupFileSilent();
-      showToast("Created new backup file: cds-flashcards-backup.json");
+      showToast(`Created save folder and file at: Downloads/${folderName}/${fileName}`);
     }
 
     document.getElementById('welcome-modal').classList.remove('open');
@@ -1050,7 +1077,7 @@ async function autoImportBackup() {
   }
 }
 
-// Configure backup folder location
+// Configure backup folder location starting in downloads, checking subfolder and file
 async function setupBackupFolder() {
   if (!('showDirectoryPicker' in window)) {
     showToast("Directory configuration not supported on this browser. Backups will download manually.");
@@ -1060,27 +1087,41 @@ async function setupBackupFolder() {
   }
 
   try {
-    const dirHandle = await window.showDirectoryPicker();
+    const parentDirHandle = await window.showDirectoryPicker({
+      startIn: 'downloads'
+    });
     
-    // Check if similar backup file already exists in this folder
+    const folderName = 'CDS-Flashcards';
+    const fileName = 'cds-flashcards-backup.json';
+    
+    let subDirHandle = null;
     let existingFileHandle = null;
     
-    // 1. Check for the exact file first
+    // 1. Try to open the subfolder 'CDS-Flashcards'
     try {
-      existingFileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: false });
+      subDirHandle = await parentDirHandle.getDirectoryHandle(folderName, { create: false });
     } catch (e) {
-      // ignore
+      // subfolder doesn't exist
     }
 
-    if (!existingFileHandle) {
-      // 2. Iterate entries to look for any file ending in .json and containing cds, flashcard, or backup
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file') {
-          const lowerName = entry.name.toLowerCase();
-          if (lowerName.endsWith('.json') && 
-              (lowerName.includes('cds') || lowerName.includes('flashcard') || lowerName.includes('backup'))) {
-            existingFileHandle = entry;
-            break;
+    if (subDirHandle) {
+      // 2. Subfolder exists. Check for exact backup file first
+      try {
+        existingFileHandle = await subDirHandle.getFileHandle(fileName, { create: false });
+      } catch (e) {
+        // exact file doesn't exist. search for similar files in the subfolder
+      }
+
+      if (!existingFileHandle) {
+        // Look for similar files inside the subfolder
+        for await (const entry of subDirHandle.values()) {
+          if (entry.kind === 'file') {
+            const lowerName = entry.name.toLowerCase();
+            if (lowerName.endsWith('.json') && 
+                (lowerName.includes('cds') || lowerName.includes('flashcard') || lowerName.includes('backup'))) {
+              existingFileHandle = entry;
+              break;
+            }
           }
         }
       }
@@ -1088,7 +1129,7 @@ async function setupBackupFolder() {
 
     if (existingFileHandle) {
       // Ask user if they want to import the existing file or overwrite it
-      const shouldImport = confirm(`Found existing backup file "${existingFileHandle.name}" in that folder. Would you like to import its contents? Tapping "Cancel" will write your current deck to it instead.`);
+      const shouldImport = confirm(`Found existing backup file "${existingFileHandle.name}" in Downloads/${folderName}. Would you like to import its contents? Tapping "Cancel" will write your current deck to it instead.`);
       
       fileHandle = existingFileHandle;
       await saveFileHandleToDB(fileHandle);
@@ -1108,18 +1149,22 @@ async function setupBackupFolder() {
       } else {
         // Overwrite existing file with current memory state
         await writeBackupFileSilent();
-        showToast(`Backup configured and saved to existing "${fileHandle.name}".`);
+        showToast(`Backup configured and saved to existing Downloads/${folderName}/${fileHandle.name}.`);
       }
     } else {
-      // No similar file exists. Create a new one.
-      fileHandle = await dirHandle.getFileHandle('cds-flashcards-backup.json', { create: true });
+      // Subfolder or backup file does not exist. Create them!
+      if (!subDirHandle) {
+        subDirHandle = await parentDirHandle.getDirectoryHandle(folderName, { create: true });
+      }
+      fileHandle = await subDirHandle.getFileHandle(fileName, { create: true });
+      
       await saveFileHandleToDB(fileHandle);
       localStorage.setItem('backup_mode', 'api');
       setCookie('has_backup_setup', 'true', 365);
       
       // Write current state to initialize the file
       await writeBackupFileSilent();
-      showToast("Created new backup file: cds-flashcards-backup.json");
+      showToast(`Created save folder and file at: Downloads/${folderName}/${fileName}`);
     }
 
     updateBackupStatusUI();
