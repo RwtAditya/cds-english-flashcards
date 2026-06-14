@@ -377,6 +377,49 @@
           </div>
         </div>
       </div>
+
+      <!-- GitHub Cloud Sync Section -->
+      <div class="stats-chart-card" style="margin-top: 20px;">
+        <h3>GitHub Cloud Sync</h3>
+        <p class="panel-subtitle" style="margin-bottom: 16px;">
+          Sync your laptop and phone. Provide a Personal Access Token (PAT) with contents read/write permissions.
+        </p>
+        <div class="cloud-sync-form" style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="gh-username">GitHub Username</label>
+            <input type="text" id="gh-username" placeholder="e.g. RwtAditya" style="width: 100%; box-sizing: border-box;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="gh-repo">Repository Name</label>
+            <input type="text" id="gh-repo" placeholder="e.g. cds-english-flashcards" style="width: 100%; box-sizing: border-box;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="gh-branch">Branch</label>
+            <input type="text" id="gh-branch" placeholder="main" value="main" style="width: 100%; box-sizing: border-box;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="gh-token">Personal Access Token (PAT)</label>
+            <input type="password" id="gh-token" placeholder="github_pat_..." style="width: 100%; box-sizing: border-box;">
+          </div>
+          
+          <div class="backup-button-row" style="display: flex; gap: 12px; width: 100%; margin-top: 8px;">
+            <button class="btn btn-secondary" onclick="saveCloudConfig()" style="flex: 1; padding: 10px 16px; font-size: 0.9rem;">
+              <i class="fa-solid fa-floppy-disk"></i> Save Config
+            </button>
+            <button class="btn btn-secondary" onclick="disconnectCloudSync()" style="flex: 1; padding: 10px 16px; font-size: 0.9rem; color: #D26C1C;">
+              <i class="fa-solid fa-unlink"></i> Disconnect
+            </button>
+          </div>
+          
+          <button class="btn btn-primary btn-block" onclick="syncWithGitHub()" id="btn-github-sync" style="padding: 12px 20px; font-size: 0.95rem; margin-top: 4px;">
+            <i class="fa-solid fa-rotate"></i> Sync with GitHub
+          </button>
+          
+          <div id="github-sync-status-text" style="font-size: 0.8rem; color: var(--text-light); text-align: center;">
+            No GitHub configuration saved.
+          </div>
+        </div>
+      </div>
     </section>
 
   </main>

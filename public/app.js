@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize Backup / Onboarding
   await initBackupFile();
   checkFirstTimeUser();
+  loadCloudConfig(); // Load GitHub configuration if available
 
   // Initialize auto-save background checker (every 5 seconds)
   setInterval(checkAndAutoSave, 5000);
@@ -1357,5 +1358,252 @@ async function checkAndAutoSave() {
         console.error("Auto-save failed:", err);
       }
     }
+  }
+}
+
+// GITHUB CLOUD SYNC MODULE
+
+function getCloudConfig() {
+  return {
+    username: localStorage.getItem('gh_username') || '',
+    repo: localStorage.getItem('gh_repo') || '',
+    branch: localStorage.getItem('gh_branch') || 'main',
+    token: localStorage.getItem('gh_token') || ''
+  };
+}
+
+function loadCloudConfig() {
+  const config = getCloudConfig();
+  const usernameInput = document.getElementById('gh-username');
+  const repoInput = document.getElementById('gh-repo');
+  const branchInput = document.getElementById('gh-branch');
+  const tokenInput = document.getElementById('gh-token');
+
+  if (usernameInput) usernameInput.value = config.username;
+  if (repoInput) repoInput.value = config.repo;
+  if (branchInput) branchInput.value = config.branch;
+  if (tokenInput) tokenInput.value = config.token;
+  
+  updateCloudSyncUI();
+}
+
+function saveCloudConfig() {
+  const username = document.getElementById('gh-username').value.trim();
+  const repo = document.getElementById('gh-repo').value.trim();
+  const branch = document.getElementById('gh-branch').value.trim() || 'main';
+  const token = document.getElementById('gh-token').value.trim();
+  
+  if (!username || !repo || !token) {
+    showToast("Please fill in Username, Repository, and Token.");
+    return;
+  }
+  
+  localStorage.setItem('gh_username', username);
+  localStorage.setItem('gh_repo', repo);
+  localStorage.setItem('gh_branch', branch);
+  localStorage.setItem('gh_token', token);
+  
+  showToast("GitHub Cloud Sync configuration saved!");
+  updateCloudSyncUI();
+}
+
+function disconnectCloudSync() {
+  if (!confirm("Are you sure you want to disconnect and clear GitHub configurations?")) return;
+  
+  localStorage.removeItem('gh_username');
+  localStorage.removeItem('gh_repo');
+  localStorage.removeItem('gh_branch');
+  localStorage.removeItem('gh_token');
+  localStorage.removeItem('gh_last_sync');
+  
+  const usernameInput = document.getElementById('gh-username');
+  const repoInput = document.getElementById('gh-repo');
+  const branchInput = document.getElementById('gh-branch');
+  const tokenInput = document.getElementById('gh-token');
+
+  if (usernameInput) usernameInput.value = '';
+  if (repoInput) repoInput.value = '';
+  if (branchInput) branchInput.value = 'main';
+  if (tokenInput) tokenInput.value = '';
+  
+  showToast("Disconnected from GitHub Cloud Sync.");
+  updateCloudSyncUI();
+}
+
+function updateCloudSyncUI() {
+  const config = getCloudConfig();
+  const statusText = document.getElementById('github-sync-status-text');
+  const btnSync = document.getElementById('btn-github-sync');
+  const lastSync = localStorage.getItem('gh_last_sync');
+  
+  if (!statusText || !btnSync) return;
+
+  if (config.username && config.repo && config.token) {
+    btnSync.removeAttribute('disabled');
+    if (lastSync) {
+      statusText.innerText = `Connected. Last synced: ${lastSync}`;
+      statusText.style.color = '#6A8E61';
+    } else {
+      statusText.innerText = "Connected. Ready to sync.";
+      statusText.style.color = 'var(--secondary)';
+    }
+  } else {
+    btnSync.setAttribute('disabled', 'true');
+    statusText.innerText = "No GitHub configuration saved.";
+    statusText.style.color = 'var(--text-light)';
+  }
+}
+
+// UTF-8 base64 encoding and decoding helpers
+function unicodeBtoa(str) {
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+    return String.fromCharCode('0x' + p1);
+  }));
+}
+
+function unicodeAtob(str) {
+  return decodeURIComponent(Array.prototype.map.call(atob(str), (c) => {
+    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+  }).join(''));
+}
+
+async function syncWithGitHub() {
+  const config = getCloudConfig();
+  if (!config.username || !config.repo || !config.token) {
+    showToast("GitHub sync settings are incomplete.");
+    return;
+  }
+  
+  const btnSync = document.getElementById('btn-github-sync');
+  const statusText = document.getElementById('github-sync-status-text');
+  
+  if (!btnSync || !statusText) return;
+
+  btnSync.setAttribute('disabled', 'true');
+  btnSync.innerHTML = '<i class="fa-solid fa-rotate fa-spin"></i> Syncing...';
+  statusText.innerText = "Connecting to GitHub...";
+  statusText.style.color = 'var(--secondary)';
+  
+  const path = 'cds-flashcards-backup.json';
+  const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${path}?ref=${config.branch}`;
+  
+  try {
+    const getRes = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${config.token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+    let remoteData = null;
+    let fileSha = null;
+    
+    if (getRes.status === 200) {
+      const resJson = await getRes.json();
+      fileSha = resJson.sha;
+      const decodedContent = unicodeAtob(resJson.content.replace(/\s/g, ''));
+      try {
+        remoteData = JSON.parse(decodedContent);
+      } catch (err) {
+        console.error("Failed to parse remote JSON, starting clean overwrite:", err);
+      }
+    } else if (getRes.status !== 404) {
+      const errRes = await getRes.json().catch(() => ({}));
+      showToast(`GitHub Sync failed: ${errRes.message || getRes.statusText}`);
+      loadCloudConfig();
+      return;
+    }
+    
+    let mergedCards = [];
+    let mergedStreakCount = 0;
+    let mergedLastRevDate = '';
+    
+    if (remoteData) {
+      const mergedMap = new Map();
+      const remoteCards = remoteData.cards || [];
+      
+      remoteCards.forEach(c => mergedMap.set(c.id, c));
+      
+      allCards.forEach(localCard => {
+        const remoteCard = mergedMap.get(localCard.id);
+        if (!remoteCard) {
+          mergedMap.set(localCard.id, localCard);
+        } else {
+          // Resolve review conflicts: keep the one with the newer review date
+          if (localCard.next_review_date > remoteCard.next_review_date) {
+            mergedMap.set(localCard.id, localCard);
+          }
+        }
+      });
+      mergedCards = Array.from(mergedMap.values());
+      
+      const localStreak = parseInt(localStorage.getItem('streakCount') || '0', 10);
+      const remoteStreak = remoteData.streakCount || 0;
+      mergedStreakCount = Math.max(localStreak, remoteStreak);
+      
+      const localRevDate = localStorage.getItem('lastRevisionDate') || '';
+      const remoteRevDate = remoteData.lastRevisionDate || '';
+      mergedLastRevDate = localRevDate > remoteRevDate ? localRevDate : remoteRevDate;
+      
+    } else {
+      mergedCards = allCards;
+      mergedStreakCount = parseInt(localStorage.getItem('streakCount') || '0', 10);
+      mergedLastRevDate = localStorage.getItem('lastRevisionDate') || '';
+    }
+    
+    allCards = mergedCards;
+    saveCardsToStorage();
+    localStorage.setItem('streakCount', mergedStreakCount.toString());
+    localStorage.setItem('lastRevisionDate', mergedLastRevDate);
+    
+    initStreak();
+    loadBrowseDeck();
+    loadStats();
+    loadRevisionDeck();
+    
+    const backupObj = {
+      cards: allCards,
+      streakCount: mergedStreakCount,
+      lastRevisionDate: mergedLastRevDate
+    };
+    
+    const putBody = {
+      message: "Sync flashcards [Cloud Merge]",
+      content: unicodeBtoa(JSON.stringify(backupObj, null, 2)),
+      branch: config.branch
+    };
+    if (fileSha) {
+      putBody.sha = fileSha;
+    }
+    
+    const putRes = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${path}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${config.token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(putBody)
+    });
+    
+    if (putRes.status === 200 || putRes.status === 201) {
+      const now = new Date();
+      const timestamp = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      localStorage.setItem('gh_last_sync', timestamp);
+      showToast("Sync with GitHub completed successfully!");
+    } else {
+      const errRes = await putRes.json().catch(() => ({}));
+      showToast(`GitHub Save failed: ${errRes.message || putRes.statusText}`);
+    }
+    
+  } catch (err) {
+    console.error(err);
+    showToast("Network error during GitHub Sync.");
+  } finally {
+    btnSync.removeAttribute('disabled');
+    btnSync.innerHTML = '<i class="fa-solid fa-rotate"></i> Sync with GitHub';
+    loadCloudConfig();
   }
 }
