@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Register Service Worker for PWA
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js?v=2.1')
+      navigator.serviceWorker.register('sw.js?v=2.2')
         .then(reg => console.log('Service Worker registered', reg))
         .catch(err => console.error('Service Worker registration failed', err));
     });
@@ -315,6 +315,7 @@ async function requestInitialPermissionUnlock() {
 function getBackupObject() {
   return {
     cards: allCards,
+    deletedCardIds: JSON.parse(localStorage.getItem('cds_deleted_cards') || '[]'),
     streakCount: parseInt(localStorage.getItem('streakCount') || '0', 10),
     lastRevisionDate: localStorage.getItem('lastRevisionDate') || ''
   };
@@ -892,6 +893,14 @@ function deleteCard(id) {
 
   allCards = allCards.filter(card => card.id !== id);
   saveCardsToStorage();
+
+  // Track the deletion for GitHub sync tombstoning
+  const deleted = JSON.parse(localStorage.getItem('cds_deleted_cards') || '[]');
+  if (!deleted.includes(id)) {
+    deleted.push(id);
+    localStorage.setItem('cds_deleted_cards', JSON.stringify(deleted));
+  }
+
   showToast('Card deleted.');
   loadBrowseDeck();
 }
@@ -1298,6 +1307,12 @@ function processImport(contents) {
       localStorage.setItem('streakCount', streak.toString());
       localStorage.setItem('lastRevisionDate', lastRevDate);
       initStreak(); // Refresh UI values
+
+      // Restore/merge deletedCardIds
+      const remoteDeletedIds = importData.deletedCardIds || [];
+      const localDeletedIds = JSON.parse(localStorage.getItem('cds_deleted_cards') || '[]');
+      const mergedDeletedIds = Array.from(new Set([...localDeletedIds, ...remoteDeletedIds]));
+      localStorage.setItem('cds_deleted_cards', JSON.stringify(mergedDeletedIds));
     } else {
       showToast("Invalid backup structure.");
       return;
@@ -1563,14 +1578,23 @@ async function syncWithGitHub() {
     let mergedCards = [];
     let mergedStreakCount = 0;
     let mergedLastRevDate = '';
+    let mergedDeletedIds = [];
     
+    // Get local and remote deleted Card IDs
+    const localDeletedIds = JSON.parse(localStorage.getItem('cds_deleted_cards') || '[]');
+    const remoteDeletedIds = remoteData ? (remoteData.deletedCardIds || []) : [];
+    mergedDeletedIds = Array.from(new Set([...localDeletedIds, ...remoteDeletedIds]));
+    localStorage.setItem('cds_deleted_cards', JSON.stringify(mergedDeletedIds));
+
     if (remoteData) {
       const mergedMap = new Map();
-      const remoteCards = remoteData.cards || [];
+      // Filter out deleted cards
+      const remoteCards = (remoteData.cards || []).filter(c => !mergedDeletedIds.includes(c.id));
+      const activeLocalCards = allCards.filter(c => !mergedDeletedIds.includes(c.id));
       
       remoteCards.forEach(c => mergedMap.set(c.id, c));
       
-      allCards.forEach(localCard => {
+      activeLocalCards.forEach(localCard => {
         const remoteCard = mergedMap.get(localCard.id);
         if (!remoteCard) {
           mergedMap.set(localCard.id, localCard);
@@ -1592,7 +1616,8 @@ async function syncWithGitHub() {
       mergedLastRevDate = localRevDate > remoteRevDate ? localRevDate : remoteRevDate;
       
     } else {
-      mergedCards = allCards;
+      // Filter local cards by deleted list even if no remote data exists
+      mergedCards = allCards.filter(c => !mergedDeletedIds.includes(c.id));
       mergedStreakCount = parseInt(localStorage.getItem('streakCount') || '0', 10);
       mergedLastRevDate = localStorage.getItem('lastRevisionDate') || '';
     }
@@ -1609,6 +1634,7 @@ async function syncWithGitHub() {
     
     const backupObj = {
       cards: allCards,
+      deletedCardIds: mergedDeletedIds,
       streakCount: mergedStreakCount,
       lastRevisionDate: mergedLastRevDate
     };
